@@ -9,7 +9,8 @@
     "start": "node __sapper__/build",
     "cy:run": "cypress run",
     "cy:open": "cypress open",
-    "test": "run-p --race dev cy:run"
+    "test": "run-p --race dev cy:run",
+    "deploy": "gcloud functions deploy hello --runtime nodejs10 --trigger-http --region=europe-west1"
   },
   "dependencies": {
     "compression": "^1.7.1",
