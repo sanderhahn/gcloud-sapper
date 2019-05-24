@@ -14,29 +14,6 @@ npm install
 
 ## Entry Point
 
-Functions are loaded from the `index.js` and its entry point must be exported. The entry point has to expose a node request handler and starting a server is not necessary.
-
-For instance a minimal hello world would be:
-
-```js
-// index.js
-exports.hello = (req, res) => {
-  res.send('Hello World!');
-};
-```
-
-The command to deploy this to a node version 10 environment in Europe is:
-
-```bash
-gcloud functions deploy hello --runtime nodejs10 --trigger-http --region=europe-west1
-```
-
-The deploy command can be added as a script in the `package.json`:
-
-```json
-"deploy": "gcloud functions deploy sapper --runtime nodejs10 --trigger-http --region=europe-west1"
-```
-
 We will use Express because it is already part of the cloud environment and Polka has an issue
 [Cannot set property path](https://github.com/lukeed/polka/pull/86). In the `src/server.js` we
 will only listen when the script is started as main and we export the request handler:
@@ -59,8 +36,7 @@ if (require.main === module) {
 exports.app = app;
 ```
 
-After `npm run build` the entry point of the Sapper server is inside `__sapper__/build/server/server.js`.
-We can now include the server handler into index.js:
+Functions are started from the `index.js` and its entry point must be exported. The entry point has to expose a node request handler with the name of the deploy function. After `npm run build` the request handler of the Sapper server is inside `__sapper__/build/server/server.js`.
 
 ```js
 // index.js
@@ -77,6 +53,12 @@ The build files are in .gitignore but they need to be deployed so lets remove th
 # remove /__sapper__/ and add:
 /__sapper__/dev
 /__sapper__/export
+```
+
+The deploy command can be added as a script in the `package.json`:
+
+```json
+"deploy": "gcloud functions deploy sapper --runtime nodejs10 --trigger-http --region=europe-west1"
 ```
 
 The app can now be deployed using `npm run deploy`.
