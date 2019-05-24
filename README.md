@@ -54,11 +54,13 @@ polka() // You can also use Express
 //# sourceMappingURL=server.js.map
 ```
 
-Has to be changed into:
+We will use Express because it is already part of the cloud environment and Polka has an issue
+[Cannot set property path](https://github.com/lukeed/polka/pull/86):
 
 ```js
 // export handler as app
-exports.app = polka() // You can also use Express
+const express = require('express');
+exports.app = express()
     .use(
         compression({ threshold: 0 }),
         sirv('static', { dev }),
@@ -79,7 +81,7 @@ Now we can import the app handler in our index.js:
 // index.js
 const server = require('./__sapper__/build/server/server.js');
 exports.sapper = (req, res) => {
-    server.app.handler(req, res);
+    server.app(req, res);
 };
 ```
 
@@ -94,35 +96,7 @@ The build files are in .gitignore but they need to be deployed so lets remove th
 
 The app can now be deployed using `npm run deploy`, however visiting its url results in `Error: could not handle the request`. The log entries of the functions will show:
 
-```
-TypeError: Cannot set property path of #<IncomingMessage> which has only a getter
-    at Polka.handler (/srv/functions/node_modules/polka/index.js:74:29)
-    at exports.sapper (/srv/functions/index.js:4:16)
-    at process.nextTick (/srv/node_modules/@google-cloud/functions-framework/build/src/invoker.js:243:17)
-    at process._tickCallback (internal/process/next_tick.js:61:11)
-```
-
-## Polka Workaround
-
-Polka is changing the `req.path` and the cloud environment doesn't allow this. As a workaround we can add a getter/setter to allow the path to be changed:
-
-```js
-// index.js
-const server = require('./__sapper__/build/server/server.js');
-exports.sapper = (req, res) => {
-    // define a path property setter on req
-    var path = req.path;
-    Object.defineProperty(req, 'path', {
-        get: function() {
-            return path;
-        },
-        set: function(newValue) {
-            path = newValue;
-        },
-    });
-    server.app.handler(req, res);
-};
-```
+## Changing BaseURL
 
 Deploying again now gives responses but the assets show up as broken links because the base href is `/`. So we change the baseUrl of the request to include the function name:
 
@@ -132,7 +106,7 @@ const server = require('./__sapper__/build/server/server.js');
 exports.sapper = (req, res) => {
     // ...
     req.baseUrl = `/${process.env.FUNCTION_TARGET}`;
-    server.app.handler(req, res);
+    server.app(req, res);
 };
 ```
 
