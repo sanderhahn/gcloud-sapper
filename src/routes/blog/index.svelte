@@ -1,6 +1,7 @@
 <script context="module">
 	export function preload({ params, query }) {
-		return this.fetch(`blog.json`).then(r => r.json()).then(posts => {
+		const base = typeof process === "undefined" ? "" : process.env.TRIGGER_URL;
+		return this.fetch(`${base}blog.json`).then(r => r.json()).then(posts => {
 			return { posts };
 		});
 	}

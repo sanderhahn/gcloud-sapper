@@ -11,6 +11,8 @@ exports.sapper = (req, res) => {
       path = newValue;
     },
   });
-  req.baseUrl = `/${process.env.FUNCTION_TARGET}`;
+  const func = process.env.FUNCTION_TARGET;
+  req.baseUrl = `/${func}`;
+  process.env.TRIGGER_URL = `https://${req.headers.host}/${func}/`;
   server.app.handler(req, res);
 };
