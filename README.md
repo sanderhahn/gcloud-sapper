@@ -1,88 +1,172 @@
-# sapper-template
+# Running Sapper in a Google Cloud Function
 
-The default [Sapper](https://github.com/sveltejs/sapper) template, with branches for Rollup and webpack. To clone it and get started:
+This readme describes my experiment to get a Sapper site to run in a Google Cloud Function. Better ways to run Sapper in production are available, for instance the svelte.dev website runs on Google Cloud Run.
+
+## Project
+
+Created an new Sapper project and build the project:
 
 ```bash
-# for Rollup
-npx degit sveltejs/sapper-template#rollup my-app
-# for webpack
-npx degit sveltejs/sapper-template#webpack my-app
-cd my-app
-npm install # or yarn!
-npm run dev
+npx degit sveltejs/sapper-template#rollup gcloud-sapper
+cd gcloud-sapper
+npm install && npm run build
 ```
 
-Open up [localhost:3000](http://localhost:3000) and start clicking around.
+## Entry Point
 
-Consult [sapper.svelte.dev](https://sapper.svelte.dev) for help getting started.
+Functions are loaded from the `index.js` and its entry point must be exported. The entry point has to expose a node request handler and starting a server is not necessary.
 
-
-## Structure
-
-Sapper expects to find two directories in the root of your project —  `src` and `static`.
-
-
-### src
-
-The [src](src) directory contains the entry points for your app — `client.js`, `server.js` and (optionally) a `service-worker.js` — along with a `template.html` file and a `routes` directory.
-
-
-#### src/routes
-
-This is the heart of your Sapper app. There are two kinds of routes — *pages*, and *server routes*.
-
-**Pages** are Svelte components written in `.svelte` files. When a user first visits the application, they will be served a server-rendered version of the route in question, plus some JavaScript that 'hydrates' the page and initialises a client-side router. From that point forward, navigating to other pages is handled entirely on the client for a fast, app-like feel. (Sapper will preload and cache the code for these subsequent pages, so that navigation is instantaneous.)
-
-**Server routes** are modules written in `.js` files, that export functions corresponding to HTTP methods. Each function receives Express `request` and `response` objects as arguments, plus a `next` function. This is useful for creating a JSON API, for example.
-
-There are three simple rules for naming the files that define your routes:
-
-* A file called `src/routes/about.svelte` corresponds to the `/about` route. A file called `src/routes/blog/[slug].svelte` corresponds to the `/blog/:slug` route, in which case `params.slug` is available to the route
-* The file `src/routes/index.svelte` (or `src/routes/index.js`) corresponds to the root of your app. `src/routes/about/index.svelte` is treated the same as `src/routes/about.svelte`.
-* Files and directories with a leading underscore do *not* create routes. This allows you to colocate helper modules and components with the routes that depend on them — for example you could have a file called `src/routes/_helpers/datetime.js` and it would *not* create a `/_helpers/datetime` route
-
-
-### static
-
-The [static](static) directory contains any static assets that should be available. These are served using [sirv](https://github.com/lukeed/sirv).
-
-In your [service-worker.js](app/service-worker.js) file, you can import these as `files` from the generated manifest...
+For instance a minimal hello world would be:
 
 ```js
-import { files } from '@sapper/service-worker';
+// index.js
+exports.hello = (req, res) => {
+  res.send('Hello World!');
+};
 ```
 
-...so that you can cache them (though you can choose not to, for example if you don't want to cache very large files).
-
-
-## Bundler config
-
-Sapper uses Rollup or webpack to provide code-splitting and dynamic imports, as well as compiling your Svelte components. With webpack, it also provides hot module reloading. As long as you don't do anything daft, you can edit the configuration files to add whatever plugins you'd like.
-
-
-## Production mode and deployment
-
-To start a production version of your app, run `npm run build && npm start`. This will disable live reloading, and activate the appropriate bundler plugins.
-
-You can deploy your application to any environment that supports Node 8 or above. As an example, to deploy to [Now](https://zeit.co/now), run these commands:
+The command to deploy this to a node version 10 environment in Europe is:
 
 ```bash
-npm install -g now
-now
+gcloud functions deploy hello --runtime nodejs10 --trigger-http --region=europe-west1
 ```
 
+The deploy command can be added as a script in the `package.json`:
 
-## Using external components with webpack
-
-When using Svelte components installed from npm, such as [@sveltejs/svelte-virtual-list](https://github.com/sveltejs/svelte-virtual-list), Svelte needs the original component source (rather than any precompiled JavaScript that ships with the component). This allows the component to be rendered server-side, and also keeps your client-side app smaller.
-
-Because of that, it's essential that webpack doesn't treat the package as an *external dependency*. You can either modify the `externals` option under `server` in [webpack.config.js](webpack.config.js), or simply install the package to `devDependencies` rather than `dependencies`, which will cause it to get bundled (and therefore compiled) with your app:
-
-```bash
-npm install -D @sveltejs/svelte-virtual-list
+```json
+"deploy": "gcloud functions deploy sapper --runtime nodejs10 --trigger-http --region=europe-west1"
 ```
 
+The entry point of the Sapper server is inside `__sapper__/build/server/server.js`.
+However the server starts listening to a port and we only need the request handler.
+So lets change to the last lines of the server to expose the polka handler:
 
-## Bugs and feedback
+```js
+polka() // You can also use Express
+    .use(
+        compression({ threshold: 0 }),
+        sirv('static', { dev }),
+        middleware()
+    )
+    .listen(PORT, err => {
+        if (err) console.log('error', err);
+    });
+//# sourceMappingURL=server.js.map
+```
 
-Sapper is in early development, and may have the odd rough edge here and there. Please be vocal over on the [Sapper issue tracker](https://github.com/sveltejs/sapper/issues).
+Has to be changed into:
+
+```js
+// export handler as app
+exports.app = polka() // You can also use Express
+    .use(
+        compression({ threshold: 0 }),
+        sirv('static', { dev }),
+        middleware()
+    )
+    // we don't want to listen
+    // .listen(PORT, err => {
+    //     if (err) console.log('error', err);
+    // });
+//# sourceMappingURL=server.js.map
+```
+
+Beware: rerunning `npm run build` will overwrite these changes.
+
+Now we can import the app handler in our index.js:
+
+```js
+// index.js
+const server = require('./__sapper__/build/server/server.js');
+exports.sapper = (req, res) => {
+    server.app.handler(req, res);
+};
+```
+
+The build files are in .gitignore but they need to be deployed so lets remove them from .gitignonore:
+
+```
+# changes to .gitignore
+# remove /__sapper__/ and add:
+/__sapper__/dev
+/__sapper__/export
+```
+
+The app can now be deployed using `npm run deploy`, however visiting its url results in `Error: could not handle the request`. The log entries of the functions will show:
+
+```
+TypeError: Cannot set property path of #<IncomingMessage> which has only a getter
+    at Polka.handler (/srv/functions/node_modules/polka/index.js:74:29)
+    at exports.sapper (/srv/functions/index.js:4:16)
+    at process.nextTick (/srv/node_modules/@google-cloud/functions-framework/build/src/invoker.js:243:17)
+    at process._tickCallback (internal/process/next_tick.js:61:11)
+```
+
+## Polka Workaround
+
+Polka is changing the `req.path` and the cloud environment doesn't allow this. As a workaround we can add a getter/setter to allow the path to be changed:
+
+```js
+// index.js
+const server = require('./__sapper__/build/server/server.js');
+exports.sapper = (req, res) => {
+    // define a path property setter on req
+    var path = req.path;
+    Object.defineProperty(req, 'path', {
+        get: function() {
+            return path;
+        },
+        set: function(newValue) {
+            path = newValue;
+        },
+    });
+    server.app.handler(req, res);
+};
+```
+
+Deploying again now gives responses but the assets show up as broken links because the base href is `/`. So we change the baseUrl of the request to include the function name:
+
+```js
+// index.js
+const server = require('./__sapper__/build/server/server.js');
+exports.sapper = (req, res) => {
+    // ...
+    req.baseUrl = `/${process.env.FUNCTION_TARGET}`;
+    server.app.handler(req, res);
+};
+```
+
+## Fetch Fix
+
+The site now seems to work however doing a page refresh on `/sapper/blog` gives an error:
+
+```
+invalid json response body at http://127.0.0.1:8080/sapper/blog.json
+reason: Unexpected token < in JSON at position 0
+```
+
+The blog index page `src/routes/blog/index.svelte` executes a ``this.fetch(`blog.json`)`` however fetch request default to http://localhost:8080/ when no url is supplied. This doesn't work in the cloud environment so we need to supply the
+full trigger url. The trigger url can be extracted from the request headers:
+
+```js
+// index.js
+    const func = process.env.FUNCTION_TARGET;
+    req.baseUrl = `/${func}`;
+    process.env.TRIGGER_URL = `https://${req.headers.host}/${func}`;
+```
+
+The trigger url is now available in the process env when the code is executed on the server:
+
+```js
+// src/routes/blog/index.svelte
+    const base = typeof process === "undefined" ? "" : process.env.TRIGGER_URL;
+    return this.fetch(`${base}blog.json`).then(r => r.json()).then(posts => {
+
+// src/routes/blog/[slug].svelte
+    const base = typeof process === "undefined" ? "" : process.env.TRIGGER_URL;
+    const res = await this.fetch(`${base}blog/${params.slug}.json`);
+```
+
+## Conclusion
+
+Using some workarounds its possible to get Sapper to run on a Google Cloud Function. This can be useful for development/testing purposes. Please let me know if these workarounds can be performed in more convenient ways :)
