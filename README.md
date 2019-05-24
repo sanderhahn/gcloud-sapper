@@ -9,7 +9,7 @@ Created an new Sapper project and build the project:
 ```bash
 npx degit sveltejs/sapper-template#rollup gcloud-sapper
 cd gcloud-sapper
-npm install && npm run build
+npm install
 ```
 
 ## Entry Point
@@ -37,45 +37,30 @@ The deploy command can be added as a script in the `package.json`:
 "deploy": "gcloud functions deploy sapper --runtime nodejs10 --trigger-http --region=europe-west1"
 ```
 
-The entry point of the Sapper server is inside `__sapper__/build/server/server.js`.
-However the server starts listening to a port and we only need the request handler.
-So lets change to the last lines of the server to expose the polka handler:
+We will use Express because it is already part of the cloud environment and Polka has an issue
+[Cannot set property path](https://github.com/lukeed/polka/pull/86). In the `src/server.js` we
+will only listen when the script is started as main and we export the request handler:
 
 ```js
-polka() // You can also use Express
+const app = express()
     .use(
         compression({ threshold: 0 }),
         sirv('static', { dev }),
-        middleware()
-    )
-    .listen(PORT, err => {
+        sapper.middleware()
+    );
+
+if (require.main === module) {
+    // only listen when started as main
+    app.listen(PORT, err => {
         if (err) console.log('error', err);
     });
-//# sourceMappingURL=server.js.map
+}
+
+exports.app = app;
 ```
 
-We will use Express because it is already part of the cloud environment and Polka has an issue
-[Cannot set property path](https://github.com/lukeed/polka/pull/86):
-
-```js
-// export handler as app
-const express = require('express');
-exports.app = express()
-    .use(
-        compression({ threshold: 0 }),
-        sirv('static', { dev }),
-        middleware()
-    )
-    // we don't want to listen
-    // .listen(PORT, err => {
-    //     if (err) console.log('error', err);
-    // });
-//# sourceMappingURL=server.js.map
-```
-
-Beware: rerunning `npm run build` will overwrite these changes.
-
-Now we can import the app handler in our index.js:
+After `npm run build` the entry point of the Sapper server is inside `__sapper__/build/server/server.js`.
+We can now include the server handler into index.js:
 
 ```js
 // index.js
@@ -94,7 +79,7 @@ The build files are in .gitignore but they need to be deployed so lets remove th
 /__sapper__/export
 ```
 
-The app can now be deployed using `npm run deploy`, however visiting its url results in `Error: could not handle the request`. The log entries of the functions will show:
+The app can now be deployed using `npm run deploy`.
 
 ## Changing BaseURL
 
