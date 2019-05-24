@@ -14,4 +14,9 @@
 .gitignore
 
 node_modules
-#!include:.gitignore
+.DS_Store
+node_modules
+yarn-error.log
+/cypress/screenshots/
+/__sapper__/dev
+/__sapper__/export

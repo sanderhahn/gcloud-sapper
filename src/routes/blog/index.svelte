@@ -1,6 +1,6 @@
 <script context="module">
 	export function preload({ params, query }) {
-		const base = process.env.NODE_ENV === "production" ? process.env.TRIGGER_URL : "";
+		const base = typeof process !== "undefined" ? process.env.TRIGGER_URL || "" : "";
 		return this.fetch(`${base}blog.json`).then(r => r.json()).then(posts => {
 			return { posts };
 		});

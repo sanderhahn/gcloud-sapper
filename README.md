@@ -46,14 +46,7 @@ exports.sapper = (req, res) => {
 };
 ```
 
-The build files are in .gitignore but they need to be deployed so lets remove them from .gitignonore:
-
-```
-# changes to .gitignore
-# remove /__sapper__/ and add:
-/__sapper__/dev
-/__sapper__/export
-```
+The build files should be deployed so we change `.gcloudignore` to include the build directory.
 
 The deploy command can be added as a script in the `package.json`:
 
@@ -100,11 +93,11 @@ The trigger url is now available in the process env when the code is executed on
 
 ```js
 // src/routes/blog/index.svelte
-    const base = typeof process === "undefined" ? "" : process.env.TRIGGER_URL;
+    const base = typeof process !== "undefined" ? process.env.TRIGGER_URL || "" : "";
     return this.fetch(`${base}blog.json`).then(r => r.json()).then(posts => {
 
 // src/routes/blog/[slug].svelte
-    const base = typeof process === "undefined" ? "" : process.env.TRIGGER_URL;
+    const base = typeof process !== "undefined" ? process.env.TRIGGER_URL || "" : "";
     const res = await this.fetch(`${base}blog/${params.slug}.json`);
 ```
 
