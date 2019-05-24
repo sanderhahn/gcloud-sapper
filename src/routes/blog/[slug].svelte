@@ -2,7 +2,7 @@
 	export async function preload({ params, query }) {
 		// the `slug` parameter is available because
 		// this file is called [slug].html
-		const base = typeof process === "undefined" ? "" : process.env.TRIGGER_URL;
+		const base = process.browser ? "" : process.env.TRIGGER_URL;
 		const res = await this.fetch(`${base}blog/${params.slug}.json`);
 		const data = await res.json();
 
