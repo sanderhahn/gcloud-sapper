@@ -11,5 +11,6 @@ exports.sapper = (req, res) => {
       path = newValue;
     },
   });
+  req.baseUrl = `/${process.env.FUNCTION_TARGET}`;
   server.app.handler(req, res);
 };
