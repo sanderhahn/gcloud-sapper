@@ -1,18 +1,8 @@
-# Running Sapper in a Google Cloud Function
+# Running Sapper on Google Cloud
 
-This readme describes my experiment to get a Sapper site to run in a Google Cloud Function. Better ways to run Sapper in production are available, for instance the svelte.dev website runs on Google Cloud Run.
+This readme describes my experiments to get a Sapper site to run in a Google Cloud Function. Another way to run Sapper in production is to user Google Cloud Run described below.
 
-## Project
-
-Created an new Sapper project and build the project:
-
-```bash
-npx degit sveltejs/sapper-template#rollup gcloud-sapper
-cd gcloud-sapper
-npm install
-```
-
-## Entry Point
+## Deploy on Google Cloud Function
 
 We will use Express because it is already part of the cloud environment and Polka has an issue
 [Cannot set property path](https://github.com/lukeed/polka/pull/86). In the `src/server.js` we
@@ -101,6 +91,48 @@ The trigger url is now available in the process env when the code is executed on
     const res = await this.fetch(`${base}blog/${params.slug}.json`);
 ```
 
-## Conclusion
+## Deploy on Google Cloud Run
 
-Using some workarounds its possible to get Sapper to run on a Google Cloud Function. This can be useful for development/testing purposes. Please let me know if these workarounds can be performed in more convenient ways :)
+Running in a Google Cloud Run instance is not very complicated.
+However Google Cloud Run is at the moment limited to in the `us-central1` region.
+The Svelte site is deployed using Google Cloud Run and the relevant parts are:
+
+- [.dockerignore](https://github.com/sveltejs/svelte/blob/master/site/.dockerignore)
+- [.gcloudignore](https://github.com/sveltejs/svelte/blob/master/site/.gcloudignore)
+- [Dockerfile](https://github.com/sveltejs/svelte/blob/master/site/Dockerfile)
+- [Makefile](https://github.com/sveltejs/svelte/blob/master/site/Makefile)
+- [package.json sapper script](https://github.com/sveltejs/svelte/blob/master/site/package.json#L9)
+
+These files/snippets can be copied to your own Sapper project and you will have to replace `PROJECT` with the one you setup in the Google Console. Also the Google command line tools sometimes give a errors if your user doesn't have enough priviledges. However the error message does include a link that you can follow to fix this!
+
+Sometimes when things don't work as expected it is handy to test your Docker image locally first.
+One of the problems i keep running into is that the `__sapper__/build` directory is in .gitignore.
+However default .gcloudignore generated includes the .gitignore and this will ensure that the sapper build assets are not deployed.
+So if things don't work best check if these assets are correctly deployed in the docker image first.
+You can also check the Google Cloud Run log files for messages.
+
+```bash
+# build your image locally (note the hash output: it identifies your image)
+docker build .
+export IMAGE_HASH=3bd5f8a99d18
+# list all images
+docker images
+# start a shell on your image
+docker run -p 3000:3000 -it $IMAGE_HASH sh
+# start your image demonized and map port 3000 to http://localhost:3000/ to try in your browser
+docker run -d --restart=always -p 3000:3000 $IMAGE_HASH
+# list all active containers
+docker ps
+# kill off one process
+docker kill 03b21c05a96d
+
+# build the remote gcr hosted image (note the full gcr.io/ url: it identifies your remote image)
+make deploy
+
+export REMOTE_IMAGE=gcr.io/your-project-239306/sapper-website:892e0b2
+# start a shell the remotely build image on your local system
+docker run -p 3000:3000 -it $REMOTE_IMAGE sh
+ls __sapper__/build
+# start the remote image as demon
+docker run -d -p 3000:3000 -it $REMOTE_IMAGE
+```
