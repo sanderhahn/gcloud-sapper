@@ -11,6 +11,8 @@ const mode = process.env.NODE_ENV;
 const dev = mode === 'development';
 const legacy = !!process.env.SAPPER_LEGACY_BUILD;
 
+const onwarn = (warning, onwarn) => (warning.code === 'CIRCULAR_DEPENDENCY' && /[/\\]@sapper[/\\]/.test(warning.message)) || onwarn(warning);
+
 export default {
 	client: {
 		input: config.client.input(),
@@ -25,7 +27,9 @@ export default {
 				hydratable: true,
 				emitCss: true
 			}),
-			resolve(),
+			resolve({
+				browser: true
+			}),
 			commonjs(),
 
 			legacy && babel({
@@ -49,6 +53,8 @@ export default {
 				module: true
 			})
 		],
+
+		onwarn,
 	},
 
 	server: {
@@ -69,6 +75,8 @@ export default {
 		external: Object.keys(pkg.dependencies).concat(
 			require('module').builtinModules || Object.keys(process.binding('natives'))
 		),
+
+		onwarn,
 	},
 
 	serviceworker: {
@@ -82,6 +90,8 @@ export default {
 			}),
 			commonjs(),
 			!dev && terser()
-		]
+		],
+
+		onwarn,
 	}
 };
